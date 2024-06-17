@@ -1,4 +1,4 @@
-"""Custom types for integration_blueprint."""
+"""Custom types for triad_matrix."""
 
 from __future__ import annotations
 
@@ -9,17 +9,17 @@ if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.loader import Integration
 
-    from .api import IntegrationBlueprintApiClient
+    from .api import TriadMatrixApiClient
     from .coordinator import BlueprintDataUpdateCoordinator
 
 
-type IntegrationBlueprintConfigEntry = ConfigEntry[IntegrationBlueprintData]
+type TriadMatrixConfigEntry = ConfigEntry[TriadMatrixData]
 
 
 @dataclass
-class IntegrationBlueprintData:
+class TriadMatrixData:
     """Data for the Blueprint integration."""
 
-    client: IntegrationBlueprintApiClient
+    client: TriadMatrixApiClient
     coordinator: BlueprintDataUpdateCoordinator
     integration: Integration

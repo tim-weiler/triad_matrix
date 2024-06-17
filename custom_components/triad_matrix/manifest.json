@@ -1,0 +1,12 @@
+{
+  "domain": "triad_matrix",
+  "name": "Triad Matrix",
+  "codeowners": [
+    "@ludeeus"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/ludeeus/triad_matrix",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/ludeeus/triad_matrix/issues",
+  "version": "0.0.0"
+}
