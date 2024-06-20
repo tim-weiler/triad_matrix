@@ -1,81 +1,104 @@
 """Adds config flow for Blueprint."""
 
 from __future__ import annotations
-
 import voluptuous as vol
-from homeassistant import config_entries, data_entry_flow
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
-from homeassistant.helpers import selector
-from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant import config_entries
+from homeassistant.core import callback
+from homeassistant.const import CONF_PORT, CONF_HOST
+import homeassistant.helpers.config_validation as cv
 
-from .api import (
-    TriadMatrixApiClient,
-    TriadMatrixApiClientAuthenticationError,
-    TriadMatrixApiClientCommunicationError,
-    TriadMatrixApiClientError,
+from .const import DOMAIN, LOGGER, CONF_SOURCES, CONF_OUTPUTS, CONF_CHANNEL, CONF_NAME, CONF_SPOTIFY_ID
+
+HOST_SCHEMA = vol.Schema({
+    vol.Required(CONF_HOST, description = CONF_HOST): str,
+    vol.Required(CONF_PORT, description = CONF_PORT): int}
 )
-from .const import DOMAIN, LOGGER
 
+SOURCE_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_CHANNEL): cv.string,
+        vol.Optional(CONF_NAME): cv.string,
+        vol.Optional(CONF_SPOTIFY_ID): cv.string,
+        vol.Optional("add_another"): cv.boolean
+    }
+)
 
-class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
-    """Config flow for Blueprint."""
+OUTPUT_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_CHANNEL): cv.string,
+        vol.Optional(CONF_NAME): cv.string,
+        vol.Optional("add_another"): cv.boolean
+    }
+)
+
+@callback
+def configured_instances(hass):
+    return [entry.data['host'] for entry in hass.config_entries.async_entries(DOMAIN)]
+
+class TriadMatrixConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Config flow for Triad Matrix."""
+
+    def __init__(
+        self
+    ):
+        self.sources = []
+        self.outputs = []
+        self.port: int = 0
+        self.host: str = ""
 
     VERSION = 1
 
-    async def async_step_user(
-        self,
-        user_input: dict | None = None,
-    ) -> data_entry_flow.FlowResult:
-        """Handle a flow initialized by the user."""
-        _errors = {}
+    async def async_step_user(self, user_input=None):
+        errors = {}
+
         if user_input is not None:
-            try:
-                await self._test_credentials(
-                    username=user_input[CONF_USERNAME],
-                    password=user_input[CONF_PASSWORD],
-                )
-            except TriadMatrixApiClientAuthenticationError as exception:
-                LOGGER.warning(exception)
-                _errors["base"] = "auth"
-            except TriadMatrixApiClientCommunicationError as exception:
-                LOGGER.error(exception)
-                _errors["base"] = "connection"
-            except TriadMatrixApiClientError as exception:
-                LOGGER.exception(exception)
-                _errors["base"] = "unknown"
-            else:
-                return self.async_create_entry(
-                    title=user_input[CONF_USERNAME],
-                    data=user_input,
-                )
+            if CONF_HOST in user_input:
+                self.host = user_input[CONF_HOST]
 
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_USERNAME,
-                        default=(user_input or {}).get(CONF_USERNAME, vol.UNDEFINED),
-                    ): selector.TextSelector(
-                        selector.TextSelectorConfig(
-                            type=selector.TextSelectorType.TEXT,
-                        ),
-                    ),
-                    vol.Required(CONF_PASSWORD): selector.TextSelector(
-                        selector.TextSelectorConfig(
-                            type=selector.TextSelectorType.PASSWORD,
-                        ),
-                    ),
+            if CONF_PORT in user_input:
+                self.port = user_input[CONF_PORT]
+
+            return self.async_show_form(
+                step_id="get_source", data_schema=SOURCE_SCHEMA, errors=errors
+            )
+
+        return self.async_show_form(step_id="user", data_schema=HOST_SCHEMA, errors=errors)
+
+    async def async_step_get_source(self, user_input=None):
+
+        LOGGER.info("async_step_get_source")
+        LOGGER.info(user_input)
+        if user_input is not None:
+            self.sources.append({
+                CONF_CHANNEL: user_input[CONF_CHANNEL],
+                CONF_NAME: user_input[CONF_NAME],
+                CONF_SPOTIFY_ID: user_input[CONF_SPOTIFY_ID]
+                })
+            if user_input.get("add_another", False):
+                return await self.async_step_get_source()
+
+        return self.async_show_form(step_id="get_output", data_schema=OUTPUT_SCHEMA)
+
+    async def async_step_get_output(self, user_input=None):
+
+        LOGGER.info("async_step_get_output")
+        LOGGER.info(user_input)
+        if user_input is not None:
+            self.outputs.append({
+                CONF_CHANNEL: user_input[CONF_CHANNEL],
+                CONF_NAME: user_input[CONF_NAME]
+                })
+
+            if user_input.get("add_another", False):
+                return await self.async_step_get_output()
+
+        return self.async_create_entry(
+                title="Triad Audio Matrix " + self.host,
+                data={
+                    CONF_HOST: self.host,
+                    CONF_PORT: self.port,
+                    CONF_SOURCES: self.sources,
+                    CONF_OUTPUTS: self.outputs
                 },
-            ),
-            errors=_errors,
-        )
-
-    async def _test_credentials(self, username: str, password: str) -> None:
-        """Validate credentials."""
-        client = TriadMatrixApiClient(
-            username=username,
-            password=password,
-            session=async_create_clientsession(self.hass),
-        )
-        await client.async_get_data()
+                description="Triad Audio Matrix " + self.host
+            )
